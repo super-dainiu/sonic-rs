@@ -14,6 +14,19 @@
 
 English | [中文](README_ZH.md)
 
+This patch branch is maintained by [@super-dainiu](https://github.com/super-dainiu)
+for `easy-wire` and its engine consumers. It adds the checked-skipping and visitor
+stack fixes in [#262](https://github.com/cloudwego/sonic-rs/pull/262) and the Unicode
+escape validation in [#251](https://github.com/cloudwego/sonic-rs/pull/251) to
+upstream commit `f63d1851de596fb9c53bf2a67ec84828c1d65c3c`. Consumers pin a full
+Git commit; this fork does not publish a separate crates.io package or change
+persisted data formats. Setup and API documentation below remain upstream's.
+Support and replacement are tracked in
+[easy-prim #133](https://github.com/Albert-Maxwell/easy-prim/pull/133): switch back
+to an official release once it contains both fixes and passes the same wire and
+engine regressions and performance checks. Retire this patch branch after its
+consumers have migrated.
+
 A fast Rust JSON library based on SIMD. It has some references to other open-source libraries like [sonic_cpp](https://github.com/bytedance/sonic-cpp), [serde_json](https://github.com/serde-rs/json), [sonic](https://github.com/bytedance/sonic), [simdjson](https://github.com/simdjson/simdjson), [rust-std](https://github.com/rust-lang/rust/tree/master/library/core/src/num) and more.
 
 ***For Golang users to use `sonic_rs`, please see [for_Golang_user.md](https://github.com/cloudwego/sonic-rs/blob/main/docs/for_Golang_user.md)***
