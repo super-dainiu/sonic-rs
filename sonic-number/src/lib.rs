@@ -233,9 +233,9 @@ pub fn parse_number(data: &[u8], index: &mut usize, negative: bool) -> Result<Pa
         *index += 1;
 
         if *index >= data.len() || !matches!(data[*index], b'.' | b'e' | b'E') {
-            // view -0 as float number
+            // view -0 as float number, keeping its sign
             if negative {
-                return Ok(ParserNumber::Float(0.0));
+                return Ok(ParserNumber::Float(-0.0));
             }
             return Ok(ParserNumber::Unsigned(0));
         }
@@ -259,7 +259,7 @@ pub fn parse_number(data: &[u8], index: &mut usize, negative: bool) -> Result<Pa
                     while is_digit!(data, *index) {
                         *index += 1;
                     }
-                    return Ok(ParserNumber::Float(0.0));
+                    return Ok(ParserNumber::Float(if negative { -0.0 } else { 0.0 }));
                 }
 
                 // we calculate the first digit here for two reasons:
@@ -267,7 +267,7 @@ pub fn parse_number(data: &[u8], index: &mut usize, negative: bool) -> Result<Pa
                 // 2. we only need parse at most 16 digits in parse_number_fraction
                 // and it is friendly for simd
                 if !is_digit!(data, *index) {
-                    return Ok(ParserNumber::Float(0.0));
+                    return Ok(ParserNumber::Float(if negative { -0.0 } else { 0.0 }));
                 }
 
                 significant = digit!(data, *index);
@@ -300,7 +300,7 @@ pub fn parse_number(data: &[u8], index: &mut usize, negative: bool) -> Result<Pa
                 while is_digit!(data, *index) {
                     *index += 1;
                 }
-                return Ok(ParserNumber::Float(0.0));
+                return Ok(ParserNumber::Float(if negative { -0.0 } else { 0.0 }));
             }
             _ => unreachable!("unreachable branch in parse_number_unchecked"),
         }
@@ -647,9 +647,9 @@ pub unsafe fn parse_number_unchecked(
         *index += 1;
 
         if !match_digit_u!(data, *index, b'.' | b'e' | b'E') {
-            // view -0 as float number
+            // view -0 as float number, keeping its sign
             if negative {
-                return Ok(ParserNumber::Float(0.0));
+                return Ok(ParserNumber::Float(-0.0));
             }
             return Ok(ParserNumber::Unsigned(0));
         }
@@ -673,7 +673,7 @@ pub unsafe fn parse_number_unchecked(
                     while is_digit_u!(data, *index) {
                         *index += 1;
                     }
-                    return Ok(ParserNumber::Float(0.0));
+                    return Ok(ParserNumber::Float(if negative { -0.0 } else { 0.0 }));
                 }
 
                 // we calculate the first digit here for two reasons:
@@ -681,7 +681,7 @@ pub unsafe fn parse_number_unchecked(
                 // 2. we only need parse at most 16 digits in parse_number_fraction
                 // and it is friendly for simd
                 if !is_digit_u!(data, *index) {
-                    return Ok(ParserNumber::Float(0.0));
+                    return Ok(ParserNumber::Float(if negative { -0.0 } else { 0.0 }));
                 }
 
                 significant = digit_u!(data, *index);
@@ -714,7 +714,7 @@ pub unsafe fn parse_number_unchecked(
                 while is_digit_u!(data, *index) {
                     *index += 1;
                 }
-                return Ok(ParserNumber::Float(0.0));
+                return Ok(ParserNumber::Float(if negative { -0.0 } else { 0.0 }));
             }
             _ => unreachable!("unreachable branch in parse_number_unchecked"),
         }
@@ -1241,5 +1241,53 @@ mod test {
         );
         test_parse_f32_finite_err("3.4028236e38");
         test_parse_f32_finite_err("1e39");
+    }
+
+    #[test]
+    fn test_parse_negative_zero_keeps_sign() {
+        for input in [
+            "-0", "-0.0", "-0e0", "-0E+3", "-0.0e-5", "-0.000", "-0.00E7",
+        ] {
+            let mut data = input.as_bytes().to_vec();
+            data.push(b' ');
+            let mut index = 1; // skip '-'
+            let num = parse_number(&data, &mut index, true).unwrap();
+            assert!(
+                matches!(num, ParserNumber::Float(f) if f == 0.0 && f.is_sign_negative()),
+                "input {} parsed as {:?}, expected Float(-0.0)",
+                input,
+                num
+            );
+            assert_eq!(data[index], b' ', "trailing byte for {}", input);
+            let mut index = 1;
+            // SAFETY: `padded` appends the 64 bytes the unchecked parser may read.
+            let num =
+                unsafe { crate::parse_number_unchecked(&padded(&data), &mut index, true) }.unwrap();
+            assert!(
+                matches!(num, ParserNumber::Float(f) if f == 0.0 && f.is_sign_negative()),
+                "unchecked: input {} parsed as {:?}, expected Float(-0.0)",
+                input,
+                num
+            );
+            // Positive zeros stay positive.
+            let positive = &input[1..];
+            let mut data = positive.as_bytes().to_vec();
+            data.push(b' ');
+            let mut index = 0;
+            let num = parse_number(&data, &mut index, false).unwrap();
+            assert!(
+                matches!(num, ParserNumber::Unsigned(0))
+                    || matches!(num, ParserNumber::Float(f) if f == 0.0 && f.is_sign_positive()),
+                "input {} parsed as {:?}",
+                positive,
+                num
+            );
+        }
+    }
+
+    fn padded(data: &[u8]) -> std::vec::Vec<u8> {
+        let mut padded = data.to_vec();
+        padded.resize(data.len() + 64, b' ');
+        padded
     }
 }
